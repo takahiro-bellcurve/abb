@@ -53,6 +53,8 @@ class QueryPageSpider(CrawlSpider):
         employment_page_tree = html.fromstring(employment_page_response.text)
 
         occupation = employment_page_tree.xpath(
-            "//tr[@id='shokushu']/td[@class='sameSize']/span[@class='title']/text()")[0]
+            "//tr[@id='shokushu']/td[@class='sameSize']/span[@class='title']/text()")
+        if occupation:
+            occupation = occupation[0]
 
         return occupation
