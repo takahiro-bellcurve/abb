@@ -9,6 +9,8 @@ requests = "*"
 selenium = "*"
 ipykernel = "*"
 lxml = "*"
+webdriver-manager = "*"
+pandas = "*"
 
 [dev-packages]
 
