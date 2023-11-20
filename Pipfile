@@ -11,6 +11,7 @@ ipykernel = "*"
 lxml = "*"
 webdriver-manager = "*"
 pandas = "*"
+numpy = "*"
 
 [dev-packages]
 

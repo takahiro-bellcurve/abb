@@ -1,4 +1,6 @@
 from time import sleep
+import logging
+from logging import StreamHandler, Formatter
 
 import requests
 from lxml import html
@@ -10,6 +12,12 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service as ChromeService
 from webdriver_manager.chrome import ChromeDriverManager
 
+stream_handler = StreamHandler()
+stream_handler.setFormatter(Formatter(
+    '%(asctime)s [%(name)s] %(levelname)s: %(message)s', datefmt='%Y/%d/%m %I:%M:%S'))
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger.addHandler(stream_handler)
 
 start_urls = "https://job.mynavi.jp/24/pc/search/query.html?WR:1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,99/"
 
@@ -19,16 +27,31 @@ def parse_item(response):
     source = html.fromstring(response.text)
     company_name = source.xpath("//title/text()")[0]
     postal_code = source.xpath(
-        "//th[text()='本社郵便番号']/following-sibling::td/text()")[0]
+        "//th[text()='本社郵便番号']/following-sibling::td/text()")
+    if postal_code:
+        postal_code = postal_code[0]
     company_address = source.xpath(
-        "//th[text()='本社所在地']/following-sibling::td/text()")[0]
+        "//th[text()='本社所在地']/following-sibling::td/text()")
+    if company_address:
+        company_address = company_address[0]
     company_tel = source.xpath(
-        "//th[text()='本社電話番号']/following-sibling::td/text()")[0]
+        "//th[text()='本社電話番号']/following-sibling::td/text()")
+    if company_tel:
+        company_tel = company_tel[0]
     number_of_hires = ("\n").join(source.xpath(
         "//th[text()='採用実績（人数）']/following-sibling::td/text()"))
 
-    occupation = fetch_occupation(response)
+    occupation = fetch_occupation(source)
 
+    logger.info(f"""
+                company_name: {company_name}
+                postal_code: {postal_code}
+                company_address: {company_address}
+                company_tel: {company_tel}
+                occupation: {occupation}
+                number_of_hires: {number_of_hires}
+                job_mynavi_url: {job_mynavi_url}
+                """)
     return {
         "company_name": company_name,
         "postal_code": postal_code,
@@ -40,8 +63,8 @@ def parse_item(response):
     }
 
 
-def fetch_occupation(response):
-    employment_page_link = response.xpath(
+def fetch_occupation(source):
+    employment_page_link = source.xpath(
         "//div[@id='headerWrap']//li[@class='employment']/a/@href")[0]
     employment_page_response = requests.get(
         "https://job.mynavi.jp" + employment_page_link)
@@ -58,22 +81,26 @@ def fetch_occupation(response):
 def main():
     options = Options()
     options.add_argument('--no-sandbox')
-    options.add_argument('--headless')
+    # options.add_argument('--headless')
+    logger.info("creating driver")
     driver = webdriver.Chrome(service=ChromeService(
         ChromeDriverManager().install()), options=options)
+    logger.info("created driver")
     driver.get(start_urls)
-    sleep(6)
+    driver.implicitly_wait(10)
 
     fetch_data = []
     i = 0
-    while driver.find_element(By.XPATH, "//div[@class='mainpagePnation corp upper']//ul[@class='leftRight']/li[contains(@class, 'right')]/@class") == "right":
+    while driver.find_element(By.XPATH, "//div[@class='mainpagePnation corp upper']//ul[@class='leftRight']/li[contains(@class, 'right')]").get_attribute("class") == "right":
         i += 1
-        print(i)
+        logger.info(f"page: {i}")
         corp_links = driver.find_elements(
-            By.XPATH, "//div[@class='boxSearchresultEach corp label js-add-examination-list']//h3/a/@href")
+            By.XPATH, "//div[@class='boxSearchresultEach corp label js-add-examination-list']//h3/a")
         for corp_link in corp_links:
             origin = "https://job.mynavi.jp"
-            response = requests.get(origin + corp_link)
+            corp_link = corp_link.get_attribute("href")
+            logger.info(f"fetching {origin + corp_link}")
+            response = requests.get(corp_link)
             data = parse_item(response)
             fetch_data.append(data)
             sleep(0.7)
